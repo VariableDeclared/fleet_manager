@@ -10,7 +10,7 @@ headers = {"X-API-KEY": AGENT_KEY}
 
 if 'fleet_data' not in st.session_state:
     st.session_state.fleet_data = [
-        {"id": 1, "ip": "127.0.0.1", "port": "8080", "status": "Unknown"},
+        {"id": 1, "ip": "192.168.3.88", "port": "8080", "status": "Unknown"},
     ]
 
 st.set_page_config(page_title="Fleet Manager", layout="wide")

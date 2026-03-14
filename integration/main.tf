@@ -25,7 +25,9 @@ resource "lxd_instance" "ubuntu_target" {
   device {
     name = "eth0"
     type = "nic"
-    nictype = "bridged"
-    parent = "br0"
+    properties = {
+      nictype = "bridged"
+      parent = "br0"
+    }
   }
 }
