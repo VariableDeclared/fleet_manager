@@ -21,7 +21,7 @@ resource "lxd_instance" "ubuntu_target" {
   name      = "fleet-ubuntu-01"
   image     = "ubuntu:22.04"
   type      = "virtual-machine"
-  profiles  = ["default", lxd_profile.fleet_agent_profile.name]
+  profiles  = [lxd_profile.fleet_agent_profile.name]
   device {
     name = "eth0"
     type = "nic"
