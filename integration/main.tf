@@ -23,6 +23,11 @@ resource "lxd_instance" "ubuntu_target" {
   type      = "virtual-machine"
   profiles  = [lxd_profile.fleet_agent_profile.name]
   device {
+    name = "root"
+    size = "20GiB"
+    pool = "iscsi-lun0"
+  }
+  device {
     name = "eth0"
     type = "nic"
     properties = {
