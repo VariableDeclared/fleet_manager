@@ -15,16 +15,17 @@ resource "lxd_profile" "fleet_agent_profile" {
   config = {
     "user.user-data" = file("${path.module}/cloud-init.yaml")
   }
-  device {
-    name = "eth0"
-    type = "nic"
-    nictype = "bridged"
-    parent = "br0"
-  }
+
 }
 resource "lxd_instance" "ubuntu_target" {
   name      = "fleet-ubuntu-01"
   image     = "ubuntu:22.04"
   type      = "virtual-machine"
   profiles  = ["default", lxd_profile.fleet_agent_profile.name]
+  device {
+    name = "eth0"
+    type = "nic"
+    nictype = "bridged"
+    parent = "br0"
+  }
 }
