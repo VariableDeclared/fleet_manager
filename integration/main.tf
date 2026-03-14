@@ -18,21 +18,26 @@ resource "lxd_profile" "fleet_agent_profile" {
 
 }
 resource "lxd_instance" "ubuntu_target" {
-  name      = "fleet-ubuntu-01"
-  image     = "ubuntu:22.04"
-  type      = "virtual-machine"
-  profiles  = [lxd_profile.fleet_agent_profile.name]
+  name     = "fleet-ubuntu-01"
+  image    = "ubuntu:22.04"
+  type     = "virtual-machine"
+  profiles = [lxd_profile.fleet_agent_profile.name]
   device {
     name = "root"
-    size = "20GiB"
-    pool = "iscsi-lun0"
+    type = "disk"
+
+    properties = {
+      size = "20GiB"
+      path = "/"
+      pool = "iscsi-lun0"
+    }
   }
   device {
     name = "eth0"
     type = "nic"
     properties = {
       nictype = "bridged"
-      parent = "br0"
+      parent  = "br0"
     }
   }
 }

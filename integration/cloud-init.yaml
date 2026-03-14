@@ -22,9 +22,9 @@ write_files:
 
 runcmd:
   - mkdir -p /opt/fleet-agent && cd /opt/fleet-agent
-  - python3 -m venv venv
   - git clone https://github.com/VariableDeclared/fleet_manager.git
   - cd fleet_manager/agent
+  -  python3 -m venv venv
   - /opt/fleet-agent/fleet_manager/agent/venv/bin/pip install -r requirements.txt
   - systemctl daemon-reload
   - systemctl enable fleet-agent --now
