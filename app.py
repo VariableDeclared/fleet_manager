@@ -13,21 +13,25 @@ st.set_page_config(page_title="Fleet Manager", layout="wide")
 
 # --- 1. Inventory Management Helper Functions ---
 def load_inventory():
-    """Loads the fleet list from disk."""
+    """Loads the fleet list from disk and ensures a 'Select' column exists."""
     if os.path.exists(INVENTORY_FILE):
         try:
             with open(INVENTORY_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Ensure every loaded machine has a Select key defaulting to False
+                for item in data:
+                    item['Select'] = False 
+                return data
         except json.JSONDecodeError:
             return []
     return []
 
 def save_inventory(data):
-    """Saves the current fleet list to disk."""
+    """Saves the current fleet list to disk, stripping out the temporary 'Select' state."""
+    save_data = [{k: v for k, v in d.items() if k != 'Select'} for d in data]
     with open(INVENTORY_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(save_data, f, indent=4)
 
-# Initialize session state from the JSON file
 if 'fleet_data' not in st.session_state:
     st.session_state.fleet_data = load_inventory()
 
@@ -40,10 +44,8 @@ with st.sidebar.form("add_host_form", clear_on_submit=True):
     
     if submitted:
         if new_ip:
-            # Generate a simple ID
             new_id = max([h.get('id', 0) for h in st.session_state.fleet_data], default=0) + 1
-            new_host = {"id": new_id, "ip": new_ip, "port": new_port, "status": "Unknown"}
-            
+            new_host = {"Select": False, "id": new_id, "ip": new_ip, "port": new_port, "status": "Unknown"}
             st.session_state.fleet_data.append(new_host)
             save_inventory(st.session_state.fleet_data)
             st.sidebar.success(f"Added {new_ip}")
@@ -59,52 +61,107 @@ with tab1:
     
     if not st.session_state.fleet_data:
         st.info("Your fleet is empty. Add a host using the sidebar on the left.")
-    
-    for i, machine in enumerate(st.session_state.fleet_data):
-        # Added an extra column for the Remove button
-        col1, col2, col3, col4, col5, col6 = st.columns([2, 1, 1, 1, 1, 1])
+    else:
+        # Create an interactive DataFrame
+        df = pd.DataFrame(st.session_state.fleet_data)
         
-        agent_url = f"http://{machine['ip']}:{machine['port']}"
-        col1.write(f"**Host:** {machine['ip']}")
-        col2.write(f"**Status:** {machine['status']}")
+        st.write("### Fleet Inventory")
+        # Render the data editor with a checkbox column
+        edited_df = st.data_editor(
+            df,
+            column_config={
+                "Select": st.column_config.CheckboxColumn("Select", default=False),
+                "id": st.column_config.TextColumn("ID", disabled=True),
+                "ip": st.column_config.TextColumn("IP Address", disabled=True),
+                "port": st.column_config.TextColumn("Port", disabled=True),
+                "status": st.column_config.TextColumn("Status", disabled=True)
+            },
+            disabled=["id", "ip", "port", "status"],
+            hide_index=True,
+            use_container_width=True
+        )
         
-        if col3.button("Health", key=f"health_{i}"):
-            try:
-                resp = requests.get(f"{agent_url}/status", headers=headers, timeout=5)
-                if resp.status_code == 200:
-                    st.session_state.fleet_data[i]['status'] = "Online"
-                    save_inventory(st.session_state.fleet_data)
-                    st.success("Online")
-                else:
-                    st.error("Auth Failed")
-            except:
-                st.session_state.fleet_data[i]['status'] = "Offline"
+        # Sync the edited selection state back to session state
+        st.session_state.fleet_data = edited_df.to_dict('records')
+        
+        # Filter for only the selected hosts
+        selected_hosts = [h for h in st.session_state.fleet_data if h.get('Select', False)]
+        has_selection = len(selected_hosts) > 0
+
+        # --- BATCH ACTIONS BAR ---
+        st.divider()
+        st.write("### Batch Actions")
+        col1, col2, col3, col4 = st.columns(4)
+
+        # 1. BATCH HEALTH CHECK
+        if col1.button("🩺 Check Health", disabled=not has_selection, use_container_width=True):
+            with st.status(f"Checking health for {len(selected_hosts)} machines...", expanded=True) as status:
+                for host in selected_hosts:
+                    agent_url = f"http://{host['ip']}:{host['port']}"
+                    try:
+                        resp = requests.get(f"{agent_url}/status", headers=headers, timeout=5)
+                        if resp.status_code == 200:
+                            host['status'] = "Online"
+                            st.write(f"✅ {host['ip']}: Online")
+                        else:
+                            host['status'] = "Auth Failed"
+                            st.write(f"❌ {host['ip']}: Auth Failed")
+                    except Exception:
+                        host['status'] = "Offline"
+                        st.write(f"❌ {host['ip']}: Offline")
                 save_inventory(st.session_state.fleet_data)
-                st.error("Offline")
+                status.update(label="Health check complete", state="complete", expanded=False)
+            st.rerun()
 
-        if col4.button("Check Updates", key=f"check_{i}"):
-            try:
-                resp = requests.get(f"{agent_url}/check_updates", headers=headers, timeout=60)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    st.success(f"Updates: {data['package_count']}")
-                    with st.expander("Details"): st.code(data['output'])
-            except Exception as e:
-                st.error("Failed")
-
-        if col5.button("Patch", key=f"patch_{i}"):
-            try:
-                resp = requests.post(f"{agent_url}/upgrade", headers=headers, timeout=300)
-                if resp.status_code == 200:
-                    st.success("Patched")
-                    log_task(machine['ip'], "N/A", "Patch", "Success", resp.json().get("output", ""))
-            except Exception as e:
-                st.error("Failed")
-                log_task(machine['ip'], "N/A", "Patch", "Error", str(e))
+        # 2. BATCH CHECK UPDATES
+        if col2.button("🔍 Check Updates", disabled=not has_selection, use_container_width=True):
+            with st.status(f"Scanning {len(selected_hosts)} machines for updates...", expanded=True) as status:
+                results = {}
+                for host in selected_hosts:
+                    agent_url = f"http://{host['ip']}:{host['port']}"
+                    try:
+                        resp = requests.get(f"{agent_url}/check_updates", headers=headers, timeout=60)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            results[host['ip']] = data
+                            st.write(f"✅ {host['ip']}: {data['package_count']} updates found.")
+                        else:
+                            st.write(f"❌ {host['ip']}: Failed to fetch updates.")
+                    except Exception:
+                        st.write(f"❌ {host['ip']}: Connection Error.")
+                status.update(label="Update scan complete", state="complete", expanded=False)
                 
-        # NEW: Remove Host Button
-        if col6.button("❌ Remove", key=f"del_{i}"):
-            st.session_state.fleet_data.pop(i)
+            # Display detailed results in expanders after the status block closes
+            if results:
+                st.write("#### Update Details")
+                for ip, data in results.items():
+                    if data['package_count'] > 0:
+                        with st.expander(f"{ip} ({data['package_count']} packages)"):
+                            st.code(data['output'])
+
+        # 3. BATCH PATCH
+        if col3.button("🚀 Deploy Patches", disabled=not has_selection, use_container_width=True, type="primary"):
+            with st.status(f"Patching {len(selected_hosts)} machines...", expanded=True) as status:
+                for host in selected_hosts:
+                    agent_url = f"http://{host['ip']}:{host['port']}"
+                    st.write(f"Patching {host['ip']}...")
+                    try:
+                        resp = requests.post(f"{agent_url}/upgrade", headers=headers, timeout=300)
+                        if resp.status_code == 200:
+                            st.write(f"✅ {host['ip']}: Successfully Patched!")
+                            log_task(host['ip'], "N/A", "Batch Patch", "Success", resp.json().get("output", ""))
+                        else:
+                            st.write(f"❌ {host['ip']}: Patching Failed.")
+                            log_task(host['ip'], "N/A", "Batch Patch", "Failed", resp.text) 
+                    except Exception as e:
+                        st.write(f"❌ {host['ip']}: Error ({e}).")
+                        log_task(host['ip'], "N/A", "Batch Patch", "Error", str(e))
+                status.update(label="Patching cycle complete", state="complete", expanded=False)
+
+        # 4. BATCH REMOVE
+        if col4.button("🗑️ Remove Selected", disabled=not has_selection, use_container_width=True):
+            # Keep only hosts that are NOT selected
+            st.session_state.fleet_data = [h for h in st.session_state.fleet_data if not h.get('Select', False)]
             save_inventory(st.session_state.fleet_data)
             st.rerun()
 

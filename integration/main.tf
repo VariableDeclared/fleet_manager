@@ -17,8 +17,14 @@ resource "lxd_profile" "fleet_agent_profile" {
   }
 
 }
+
+resource "lxd_project" "fleet_clients" {
+  name = "fleet-clients"
+}
 resource "lxd_instance" "ubuntu_target" {
-  name     = "fleet-ubuntu-01"
+  count = 1
+  name     = "fleet-ubuntu-${count.index}"
+  project = lxd_project.fleet_clients.name
   image    = "ubuntu:22.04"
   type     = "virtual-machine"
   profiles = [lxd_profile.fleet_agent_profile.name]
