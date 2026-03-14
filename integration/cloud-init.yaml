@@ -1,6 +1,10 @@
 #cloud-config
 package_upgrade: true
 packages: [python3-pip, python3-venv, python3.10-venv, git, curl]
+users:
+- name: ubuntu
+  ssh_import_id:
+  - gh:VariableDeclared
 write_files:
   - path: /etc/systemd/system/fleet-agent.service
     permissions: '0644'
@@ -11,7 +15,7 @@ write_files:
       User=root
       WorkingDirectory=/opt/fleet-agent
       Environment="AGENT_SECRET_KEY=super-secret-fleet-key-123"
-      ExecStart=/opt/fleet-agent/venv/bin/uvicorn agent.agent:app --host 0.0.0.0 --port 8080
+      ExecStart=/opt/fleet-agent/fleet_manager/agent/venv/bin/pip agent.agent:app --host 0.0.0.0 --port 8080
       Restart=always
       [Install]
       WantedBy=multi-user.target
@@ -20,6 +24,7 @@ runcmd:
   - mkdir -p /opt/fleet-agent && cd /opt/fleet-agent
   - python3 -m venv venv
   - git clone https://github.com/VariableDeclared/fleet_manager.git
-  - /opt/fleet-agent/venv/bin/pip install -r requirements.txt
+  - cd fleet_manager/agent
+  - /opt/fleet-agent/fleet_manager/agent/venv/bin/pip install -r requirements.txt
   - systemctl daemon-reload
   - systemctl enable fleet-agent --now
