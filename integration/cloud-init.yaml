@@ -13,9 +13,9 @@ write_files:
       Description=Linux Fleet Agent
       [Service]
       User=root
-      WorkingDirectory=/opt/fleet-agent
+      WorkingDirectory=/opt/fleet-agent/fleet_manager
       Environment="AGENT_SECRET_KEY=super-secret-fleet-key-123"
-      ExecStart=/opt/fleet-agent/fleet_manager/agent/venv/bin/pip agent.agent:app --host 0.0.0.0 --port 8080
+      ExecStart=/opt/fleet-agent/fleet_manager/venv/bin/uvicorn agent.agent:app --host 0.0.0.0 --port 8080
       Restart=always
       [Install]
       WantedBy=multi-user.target
@@ -23,8 +23,8 @@ write_files:
 runcmd:
   - mkdir -p /opt/fleet-agent && cd /opt/fleet-agent
   - git clone https://github.com/VariableDeclared/fleet_manager.git
-  - cd fleet_manager/agent
-  -  python3 -m venv venv
-  - /opt/fleet-agent/fleet_manager/agent/venv/bin/pip install -r requirements.txt
+  - cd fleet_manager
+  - python3 -m venv venv
+  - /opt/fleet-agent/fleet_manager/venv/bin/pip install -r agent/requirements.txt
   - systemctl daemon-reload
   - systemctl enable fleet-agent --now
