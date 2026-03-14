@@ -1,0 +1,23 @@
+#cloud-config
+package_upgrade: true
+packages: [python3-pip, python3-venv, git, curl]
+write_files:
+  - path: /etc/systemd/system/fleet-agent.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Linux Fleet Agent
+      [Service]
+      User=root
+      WorkingDirectory=/opt/fleet-agent
+      Environment="AGENT_SECRET_KEY=super-secret-fleet-key-123"
+      ExecStart=/opt/fleet-agent/venv/bin/uvicorn agent:app --host 0.0.0.0 --port 8080
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - mkdir -p /opt/fleet-agent && cd /opt/fleet-agent
+  - python3 -m venv venv
+  - /opt/fleet-agent/venv/bin/pip install fastapi uvicorn requests pydantic
+  - systemctl daemon-reload
+  - systemctl enable fleet-agent --now

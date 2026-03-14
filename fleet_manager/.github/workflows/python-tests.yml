@@ -1,0 +1,12 @@
+name: Fleet Manager CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+    - run: pip install fastapi uvicorn requests pytest httpx pydantic
+    - run: export AGENT_SECRET_KEY="super-secret-fleet-key-123" && pytest tests/test_agent.py
