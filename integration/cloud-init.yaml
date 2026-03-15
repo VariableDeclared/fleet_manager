@@ -2,9 +2,13 @@
 package_upgrade: true
 packages: [python3-pip, python3-venv, python3.10-venv, git, curl]
 users:
-- name: ubuntu
+- name: pjds
   ssh_import_id:
   - gh:VariableDeclared
+- name: fleet-agent
+  sudo: "fleet-agent ALL=(ALL) NOPASSWD: /usr/bin/apt-get update, /usr/bin/apt-get dist-upgrade -y, /usr/bin/dnf check-update, /usr/bin/dnf upgrade -y"
+  lock_passwd: true
+  
 write_files:
   - path: /etc/systemd/system/fleet-agent.service
     permissions: '0644'
@@ -17,6 +21,7 @@ write_files:
       Environment="AGENT_SECRET_KEY=super-secret-fleet-key-123"
       ExecStart=/opt/fleet-agent/fleet_manager/venv/bin/uvicorn agent.agent:app --host 0.0.0.0 --port 8080
       Restart=always
+      User=fleet-agent
       [Install]
       WantedBy=multi-user.target
 
