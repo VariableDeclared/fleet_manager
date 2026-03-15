@@ -83,7 +83,7 @@ elif st.session_state.get('authentication_status'):
     with tab1:
         st.title("🛰️ Agent-Based Fleet Manager")
         
-        if not st.session_state.fleet_data:
+        if 'fleet_data' not in st.session_state:
             st.info("Your fleet is empty. Add a host using the sidebar on the left.")
         else:
             # Create an interactive DataFrame
